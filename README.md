@@ -40,3 +40,4 @@ swift build -c release
 The packaged application is written to `dist/Daymark.app`.
 # math-support-scheduler
 # mathfolio
+# PocketPad
