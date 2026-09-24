@@ -1,0 +1,21 @@
+# SwiftPM / Xcode
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Packaged app output
+dist/
+*.app/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env / secrets (if added later)
+.env
+.env.*
+*.pem
+*.key
