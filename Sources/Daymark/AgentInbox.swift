@@ -106,6 +106,7 @@ final class AgentInbox {
     var isLoading = false
     var error: String?
     var lastUpdated: Date?
+    var rateLimitUntil: Date?
     private let session: URLSession
 
     init(session: URLSession = .shared) { self.session = session }
@@ -113,6 +114,11 @@ final class AgentInbox {
     /// No credentials are needed to read this public repository. Existing results survive errors.
     func refresh() async {
         guard !isLoading else { return }
+        if let until = rateLimitUntil, until > .now {
+            error = "GitHub has limited requests. Try again after \(until.formatted(date: .omitted, time: .shortened))."
+            return
+        }
+        rateLimitUntil = nil
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -128,7 +134,13 @@ final class AgentInbox {
                 request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
                 let (data, response) = try await session.data(for: request)
                 guard let http = response as? HTTPURLResponse else { throw InboxFailure.invalidResponse }
-                if http.statusCode == 403 || http.statusCode == 429 { throw InboxFailure.rateLimited }
+                if http.statusCode == 403 || http.statusCode == 429 {
+                    let retryDelay = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init) ?? 60
+                    let reset = http.value(forHTTPHeaderField: "X-RateLimit-Reset").flatMap(Double.init)
+                    let resetDate = reset.map { Date(timeIntervalSince1970: $0) } ?? .now
+                    rateLimitUntil = max(Date.now.addingTimeInterval(max(60, retryDelay)), resetDate)
+                    throw InboxFailure.rateLimited
+                }
                 guard http.statusCode == 200 else { throw InboxFailure.http(http.statusCode) }
                 let pageIssues = try JSONDecoder().decode([AgentIssue].self, from: data)
                 fetched.append(contentsOf: pageIssues.filter { $0.kind != nil })

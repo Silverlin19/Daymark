@@ -59,6 +59,10 @@ final class AgentInboxTests: XCTestCase {
         XCTAssertEqual(inbox.issues.count, 1)
         XCTAssertTrue(inbox.error?.contains("limited") ?? false)
         XCTAssertFalse(inbox.isLoading)
+        XCTAssertNotNil(inbox.rateLimitUntil)
+        let requestCount = stub.pages.count
+        await inbox.refresh()
+        XCTAssertEqual(stub.pages.count, requestCount, "Rate-limited refresh must not send another request before reset")
     }
 
     @MainActor
