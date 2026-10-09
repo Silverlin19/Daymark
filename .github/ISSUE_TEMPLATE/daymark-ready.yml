@@ -1,0 +1,63 @@
+name: "Daymark Ready"
+description: "File an explicit work request. Public on GitHub. You submit it yourself."
+title: "[Daymark Ready] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This publishes a public issue in Silverlin19/Daymark. Personal planner data stays local. Keep the title prefix exactly `[Daymark Ready] `, including the trailing space.
+
+        A Ready request asks Codex to scope and carry out the work, including delegating to Grok Bot. Merging and deploying require separate authorization. Context is optional.
+  - type: input
+    id: project
+    attributes:
+      label: Project / repository
+      description: Required. Repository or project this work applies to.
+      placeholder: owner/repo
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Requested outcome
+      description: What should be true when the request is done?
+      placeholder: Describe the outcome in public terms.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Optional. Background a reader needs. Leave private planner data on the device.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance checks
+      description: How will someone tell the outcome is met?
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Boundaries
+      description: What is out of scope?
+    validations:
+      required: true
+  - type: checkboxes
+    id: visibility
+    attributes:
+      label: Visibility
+      description: Submitted requests are public. Personal planner data stays local.
+      options:
+        - label: I understand this request will be public on GitHub and that personal planner data stays local.
+          required: true
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Authorization
+      description: Required before this counts as a Ready work request.
+      options:
+        - label: I authorize Codex to scope and carry out this request, including delegating to Grok Bot. Merging and deploying require separate authorization.
+          required: true

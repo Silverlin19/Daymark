@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Agent Inbox · Daymark</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip" href="#inbox">Skip to requests</a>
+    <div class="wrap">
+      <header class="site-header">
+        <p class="eyebrow">Daymark</p>
+        <h1>Agent Inbox</h1>
+        <p class="lede">Public Idea and Ready requests for Silverlin19/Daymark. An idea is a note. Ready means you are asking for work, which you review and submit on GitHub.</p>
+      </header>
+
+      <div class="layout">
+        <section id="inbox" aria-labelledby="inbox-title" data-state="loading">
+          <div class="toolbar">
+            <div>
+              <h2 id="inbox-title">Requests</h2>
+              <p class="fine">Status is what GitHub has recorded. It does not mean work is running.</p>
+            </div>
+            <button id="refresh" class="secondary" type="button">Refresh</button>
+          </div>
+
+          <fieldset class="filters">
+            <legend>Filter by recorded status</legend>
+            <label class="filter-option">
+              <input type="radio" name="status-filter" value="all" checked>
+              <span>All</span>
+            </label>
+            <label class="filter-option">
+              <input type="radio" name="status-filter" value="idea">
+              <span>Idea</span>
+            </label>
+            <label class="filter-option">
+              <input type="radio" name="status-filter" value="ready">
+              <span>Ready</span>
+            </label>
+            <label class="filter-option">
+              <input type="radio" name="status-filter" value="needs-input">
+              <span>Needs your input</span>
+            </label>
+            <label class="filter-option">
+              <input type="radio" name="status-filter" value="review">
+              <span>Review</span>
+            </label>
+            <label class="filter-option">
+              <input type="radio" name="status-filter" value="working">
+              <span>Working</span>
+            </label>
+            <label class="filter-option">
+              <input type="radio" name="status-filter" value="complete">
+              <span>Complete</span>
+            </label>
+          </fieldset>
+
+          <p id="preview-banner" class="preview-banner" hidden>Sample data. These are not live GitHub requests.</p>
+          <p id="inbox-banner" class="fine" role="status">Loading public requests…</p>
+          <div id="inbox-alert" class="alert" role="alert" hidden></div>
+          <div id="issue-list" class="issues"></div>
+          <p id="inbox-empty" class="empty" hidden></p>
+          <button id="load-more" class="secondary" type="button" hidden>Load more</button>
+        </section>
+
+        <section class="composer-panel" aria-labelledby="composer-title">
+          <aside class="notice" aria-label="Visibility">
+            <p><strong>Submitted requests are public.</strong> An Idea or Ready request is published as a GitHub issue in Silverlin19/Daymark. Personal planner data stays local on your device and is not uploaded by this page.</p>
+          </aside>
+
+          <form id="composer" class="composer" autocomplete="off" novalidate>
+            <h2 id="composer-title">New request</h2>
+            <p class="fine">An idea needs a title, a note, and the visibility confirmation. Ready also needs a project, acceptance checks, boundaries, and work authorization. You still submit it on GitHub.</p>
+
+            <fieldset class="kind">
+              <legend>Request type</legend>
+              <label class="choice">
+                <input type="radio" name="kind" value="idea" checked>
+                <span>Idea</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="kind" value="ready">
+                <span>Ready</span>
+              </label>
+            </fieldset>
+
+            <p id="idea-note" class="callout">This is an idea only. Do not start work.</p>
+
+            <label class="field" for="subject">
+              Title
+              <span class="hint" id="subject-hint">Subject only. The Idea or Ready prefix is added for you.</span>
+              <input id="subject" name="subject" type="text" maxlength="200" required aria-describedby="subject-hint">
+            </label>
+
+            <label class="field" for="project">
+              Project / repository
+              <span class="hint" id="project-hint">Optional for an idea.</span>
+              <input id="project" name="project" type="text" placeholder="owner/repo" aria-describedby="project-hint">
+            </label>
+
+            <label class="field" for="outcome">
+              Requested outcome
+              <textarea id="outcome" name="outcome" required></textarea>
+            </label>
+
+            <label class="field" for="context">
+              Context
+              <span class="hint" id="context-hint">Optional. Leave private planner details out.</span>
+              <textarea id="context" name="context" aria-describedby="context-hint"></textarea>
+            </label>
+
+            <label class="field" for="acceptance">
+              Acceptance checks
+              <span class="hint" id="acceptance-hint">Optional for an idea.</span>
+              <textarea id="acceptance" name="acceptance" aria-describedby="acceptance-hint"></textarea>
+            </label>
+
+            <label class="field" for="boundaries">
+              Boundaries
+              <span class="hint" id="boundaries-hint">Optional for an idea.</span>
+              <textarea id="boundaries" name="boundaries" aria-describedby="boundaries-hint"></textarea>
+            </label>
+
+            <label class="check" for="visibility">
+              <input id="visibility" name="visibility" type="checkbox">
+              <span>I understand this request will be public on GitHub and that personal planner data stays local.</span>
+            </label>
+
+            <div id="authorization-field" hidden>
+              <label class="check" for="authorization">
+                <input id="authorization" name="authorization" type="checkbox">
+                <span>I authorize Codex to scope and carry out this request, including delegating to Grok Bot. Merging and deploying require separate authorization.</span>
+              </label>
+            </div>
+
+            <ul id="form-errors" class="errors" tabindex="-1" role="alert" hidden></ul>
+            <p id="composer-result" class="callout" role="status"></p>
+            <button id="review" class="primary" type="submit">Review on GitHub</button>
+            <p class="fine">Review and submit on GitHub; if no tab appeared, use the link below.</p>
+            <div id="copy-panel" hidden>
+              <p class="fine">Paste this title and body into the GitHub issue if the new tab did not fill them in.</p>
+              <p class="copy-label">Title</p>
+              <p id="copy-title"></p>
+              <p class="copy-label">Body</p>
+              <pre id="copy-body"></pre>
+            </div>
+            <p class="fine" id="fallback-row">
+              <a id="composer-fallback" href="https://github.com/Silverlin19/Daymark/issues/new" hidden>Open a new GitHub issue<span class="sr-only"> (opens in a new tab)</span></a>
+            </p>
+          </form>
+          <noscript>
+            <p>JavaScript is off, so the live inbox cannot load. You can still <a href="https://github.com/Silverlin19/Daymark/issues/new">open a new GitHub issue</a> and paste your request.</p>
+          </noscript>
+        </section>
+      </div>
+
+      <footer class="site-footer">
+        <p>While this tab is open, the list refreshes about every 5 minutes. After GitHub limits requests, refresh waits until that limit lifts.</p>
+      </footer>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

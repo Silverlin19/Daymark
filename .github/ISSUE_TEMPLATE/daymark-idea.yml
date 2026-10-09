@@ -1,0 +1,55 @@
+name: "Daymark Idea"
+description: "Share an idea. Public on GitHub. Does not authorize work."
+title: "[Daymark Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This publishes a public issue in Silverlin19/Daymark. Personal planner data stays local. Keep the title prefix exactly `[Daymark Idea] `, including the trailing space.
+
+        This is an idea only. Do not start work. A title, the requested outcome, and the visibility confirmation are enough.
+  - type: input
+    id: project
+    attributes:
+      label: Project / repository
+      description: Optional for an idea.
+      placeholder: owner/repo
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Requested outcome
+      description: What should be true if someone later explores this idea?
+      placeholder: Describe the outcome in public terms.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Optional. Background a reader needs. Leave private planner data on the device.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance checks
+      description: Optional for an idea.
+    validations:
+      required: false
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Boundaries
+      description: Optional for an idea.
+    validations:
+      required: false
+  - type: checkboxes
+    id: visibility
+    attributes:
+      label: Visibility
+      description: Submitted requests are public. Personal planner data stays local.
+      options:
+        - label: I understand this request will be public on GitHub and that personal planner data stays local.
+          required: true
