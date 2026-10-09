@@ -29,10 +29,10 @@ import {
   mergeIssues,
   nextAutoRefreshDelay,
   nextPageUrl,
+  beginNetworkLoad,
   parseNextLink,
   parseProject,
   recognizeKind,
-  requestGate,
   safeGithubUrl,
   statusForIssue,
 } from "./protocol.mjs";
@@ -327,6 +327,8 @@ test("reads project and outcome excerpts from composer text and GitHub forms", (
   assert.equal(parseProject(native), "Silverlin19/Daymark");
   assert.equal(bodyExcerpt(native), "Ship the inbox");
   assert.equal(parseProject("Project / repository: native/app"), "native/app");
+  assert.equal(parseProject("Project / repo: owner/name"), "owner/name");
+  assert.equal(parseProject("### Project / repo\nDaymark"), "Daymark");
   assert.equal(displaySubject("[Daymark Idea] <script>alert(1)</script>"), "<script>alert(1)</script>");
   assert.equal(displaySubject("[Daymark Ready] Ship it"), "Ship it");
   assert.equal(displaySubject("[Daymark Idea] "), "");
@@ -373,37 +375,54 @@ test("classifies rate limits separately from other HTTP failures", () => {
   assert.equal(both.retryUntil, now + 180000);
   const bare = classifyHttpFailure(429, {}, "API rate limit exceeded", now);
   assert.equal(bare.retryUntil, now + 60_000);
+  assert.match(bare.message, /about 1 minute/);
+  const httpDate = new Date(now + 45_000).toUTCString();
+  const dated = classifyHttpFailure(429, { "retry-after": httpDate }, "", now);
+  assert.equal(dated.retryUntil, Date.parse(httpDate));
+  assert.match(both.message, /3 minutes/);
 });
 
 test("suppresses network requests until the rate-limit deadline expires", () => {
-  const fetches = [];
+  const prior = [{ id: 3, title: "[Daymark Idea] Keep me" }];
+  let issues = prior.map((issue) => ({ ...issue }));
   let retryUntil = null;
+  const networkCalls = [];
+
   function attempt(now, manual) {
-    const gate = requestGate({ now, retryUntil, hidden: false, automatic: !manual });
-    if (!gate.allow) return gate;
-    fetches.push(now);
-    if (fetches.length === 1) {
-      const failure = classifyHttpFailure(429, { "retry-after": "60", "x-ratelimit-remaining": "0" }, "rate limit", now);
+    const decision = beginNetworkLoad({ now, retryUntil, hidden: false, manual, issues });
+    issues = decision.issues;
+    if (!decision.proceed) return decision;
+    networkCalls.push({ now, manual });
+    if (networkCalls.length === 1) {
+      const failure = classifyHttpFailure(
+        429,
+        { "retry-after": "30", "x-ratelimit-reset": String((now + 60_000) / 1000), "x-ratelimit-remaining": "0" },
+        "rate limit",
+        now,
+      );
       assert.equal(failure.type, "rate-limit");
       assert.equal(failure.retryUntil, now + 60_000);
+      assert.match(failure.message, /about 1 minute/);
       retryUntil = failure.retryUntil;
     }
-    return { allow: true, reason: "ok", waitMs: 0 };
+    return decision;
   }
 
   const started = 1_700_000_000_000;
-  assert.equal(attempt(started, true).allow, true);
-  assert.deepEqual(fetches, [started]);
-  const manual = attempt(started + 30_000, true);
-  const automatic = attempt(started + 30_000, false);
-  assert.equal(manual.allow, false);
-  assert.equal(manual.reason, "rate-limit");
-  assert.equal(automatic.allow, false);
-  assert.equal(automatic.reason, "rate-limit");
-  assert.deepEqual(fetches, [started]);
-  assert.equal(attempt(started + 60_000, true).allow, true);
-  assert.equal(attempt(started + 60_000, false).allow, true);
-  assert.deepEqual(fetches, [started, started + 60_000, started + 60_000]);
+  assert.equal(attempt(started, true).proceed, true);
+  assert.equal(networkCalls.length, 1);
+  const duringManual = attempt(started + 30_000, true);
+  const duringAutomatic = attempt(started + 45_000, false);
+  assert.equal(duringManual.proceed, false);
+  assert.equal(duringManual.gate.reason, "rate-limit");
+  assert.equal(duringAutomatic.proceed, false);
+  assert.equal(duringAutomatic.gate.reason, "rate-limit");
+  assert.equal(networkCalls.length, 1);
+  assert.deepEqual(issues, prior);
+  assert.equal(attempt(started + 60_000, true).proceed, true);
+  assert.equal(networkCalls.length, 2);
+  assert.equal(attempt(started + 60_000, false).proceed, true);
+  assert.equal(networkCalls.length, 3);
 });
 
 test("automatic refresh waits five minutes and does not run while hidden", () => {
@@ -461,13 +480,15 @@ test("the page renders through textContent and does not carry credentials", () =
   assert.match(app, /filterInboxIssues/);
   assert.match(app, /buildNewIssueUrl/);
   assert.match(app, /classifyHttpFailure/);
-  assert.match(app, /requestGate/);
+  assert.match(app, /beginNetworkLoad/);
+  assert.match(app, /describeRetryWait/);
   assert.match(app, /nextAutoRefreshDelay/);
   assert.match(app, /visibilitychange/);
   assert.match(app, /document\.hidden/);
   assert.match(app, /credentials:\s*"omit"/);
   assert.match(app, /noopener,noreferrer/);
-  assert.ok(app.indexOf("requestGate") < app.indexOf("fetch("));
+  assert.match(app, /previewBanner\.hidden = !state\.preview/);
+  assert.ok(app.indexOf("beginNetworkLoad") < app.indexOf("fetch("));
   assert.ok(html.includes(VISIBILITY_CONFIRMATION));
   assert.ok(html.includes(IDEA_NO_ACTION));
   assert.ok(html.includes(READY_AUTHORIZATION));

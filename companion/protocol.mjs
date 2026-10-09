@@ -323,15 +323,19 @@ export function nextPageUrl({ currentUrl, rawPageCount, perPage = PER_PAGE, link
   return url.toString();
 }
 
+export function describeRetryWait(waitMs) {
+  const seconds = Math.max(1, Math.ceil(Number(waitMs) / 1000));
+  if (seconds >= 60) {
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    return `GitHub rate limit reached. Try again in about ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+  }
+  return `GitHub rate limit reached. Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`;
+}
+
 export function rateLimitMessage({ retryAfter, resetSeconds } = {}) {
-  if (typeof retryAfter === "string" && /^\d+$/.test(retryAfter)) {
-    return `GitHub rate limit reached. Try again in ${retryAfter} seconds.`;
-  }
-  if (Number.isFinite(resetSeconds) && resetSeconds > 0) {
-    const minutes = Math.max(1, Math.ceil(resetSeconds / 60));
-    return `GitHub rate limit reached. Try again in about ${minutes} minutes.`;
-  }
-  return "GitHub rate limit reached. Wait before refreshing.";
+  if (typeof retryAfter === "string" && /^\d+$/.test(retryAfter)) return describeRetryWait(Number(retryAfter) * 1000);
+  if (Number.isFinite(resetSeconds) && resetSeconds > 0) return describeRetryWait(resetSeconds * 1000);
+  return describeRetryWait(60_000);
 }
 
 function headerGet(headers, name) {
@@ -363,16 +367,12 @@ export function retryDeadline(headers, now) {
 
 export function classifyHttpFailure(status, headers, bodyText, now = Date.now()) {
   const remaining = headerGet(headers, "x-ratelimit-remaining");
-  const retryAfter = headerGet(headers, "retry-after");
-  const reset = headerGet(headers, "x-ratelimit-reset");
   const text = typeof bodyText === "string" ? bodyText : "";
   const rateLimited = status === 429 || (status === 403 && remaining === "0") || /rate limit/i.test(text);
   if (rateLimited) {
     const parsed = retryDeadline(headers, now);
     const retryUntil = parsed == null || parsed <= now ? now + 60_000 : parsed;
-    let resetSeconds = null;
-    if (reset && /^\d+$/.test(reset)) resetSeconds = Math.round(Number(reset) * 1000 - now) / 1000;
-    return { type: "rate-limit", message: rateLimitMessage({ retryAfter, resetSeconds }), retryUntil };
+    return { type: "rate-limit", message: describeRetryWait(retryUntil - now), retryUntil };
   }
   const code = Number.isFinite(status) ? status : 0;
   return { type: "error", message: `GitHub request failed (${code}).`, retryUntil: null };
@@ -384,6 +384,14 @@ export function requestGate({ now, retryUntil, hidden = false, automatic = false
   }
   if (automatic && hidden) return { allow: false, reason: "hidden", waitMs: null };
   return { allow: true, reason: "ok", waitMs: 0 };
+}
+
+/** Decides whether a manual or automatic refresh may call the network. Prior issues stay put when it refuses. */
+export function beginNetworkLoad({ now, retryUntil, hidden = false, manual = false, issues }) {
+  const kept = Array.isArray(issues) ? issues.slice() : [];
+  const gate = requestGate({ now, retryUntil, hidden, automatic: !manual });
+  if (!gate.allow) return { proceed: false, issues: kept, gate };
+  return { proceed: true, issues: kept, gate };
 }
 
 export function nextAutoRefreshDelay(lastFetchAt, now, hidden, retryUntil = null) {

@@ -63,6 +63,6 @@ These local previews skip the network and show a sample-data label:
 
 - Open-issue label precedence is `agent:needs-input`, then `agent:review`, then `agent:working`. Closed wins over every label.
 - Blank issues stay enabled so a prefilled title and body can open GitHub's classic new-issue screen. The YAML forms are for after they reach the default branch.
-- Project text is read from `Project / repo`, `Project / repository`, or a `### Project / repository` heading, including the body the Mac app writes.
+- Project text is read from `Project / repo:`, `Project / repository:`, `### Project / repo`, or `### Project / repository`, including the body the Mac app writes.
 - Outside a rate-limit deadline, manual refresh is not held for five minutes. The five-minute cap applies to the automatic refresh, and a rate-limit deadline can extend that wait.
 - An idea requires a title, requested outcome, and visibility confirmation. Ready also requires a project, acceptance checks, boundaries, and the shared authorization sentence. Context is optional.

@@ -16,8 +16,9 @@ import {
   nextPageUrl,
   parseProject,
   PER_PAGE,
+  beginNetworkLoad,
+  describeRetryWait,
   rateLimitMessage,
-  requestGate,
   REVIEW_ON_GITHUB_NOTE,
   safeGithubUrl,
   statusForIssue,
@@ -224,17 +225,19 @@ function setFailure(failure) {
 
 async function load({ reset, manual = false }) {
   if (!state.preview) {
-    const gate = requestGate({
+    const decision = beginNetworkLoad({
       now: Date.now(),
       retryUntil: state.retryUntil,
       hidden: document.hidden,
-      automatic: !manual,
+      manual,
+      issues: state.issues,
     });
-    if (!gate.allow) {
-      if (gate.reason === "rate-limit") {
+    state.issues = decision.issues;
+    if (!decision.proceed) {
+      if (decision.gate.reason === "rate-limit") {
         state.phase = "rate-limit";
         state.alertTitle = "GitHub rate limit";
-        state.alertMessage = rateLimitMessage({ retryAfter: String(Math.max(1, Math.ceil(gate.waitMs / 1000))) });
+        state.alertMessage = describeRetryWait(decision.gate.waitMs);
         state.banner = state.issues.length ? "Showing the requests already loaded." : "";
         render();
       }
