@@ -16,6 +16,7 @@ struct RootView: View {
                 case .reflect: ReflectionView(model: model)
                 case .review: ReviewView(model: model)
                 case .apps: AppsView(model: model)
+                case .agents: AgentInboxView()
                 }
             }
             .background {
