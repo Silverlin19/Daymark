@@ -1,0 +1,3 @@
+# Blank issues stay available so a prefilled title and body can open
+# GitHub's classic new-issue screen. The Idea and Ready forms are separate.
+blank_issues_enabled: true
