@@ -300,7 +300,8 @@ form.addEventListener("submit", (event) => {
   showErrors([]);
   fallback.href = built.url;
   fallback.hidden = false;
-  const opened = window.open(built.url, "_blank", "noopener,noreferrer");
+  // A noopener feature makes window.open return null even when the tab opens.
+  const opened = window.open(built.url, "_blank");
   if (opened) opened.opener = null;
   resultNote.textContent = opened
     ? "GitHub opened in a new tab. Review the title and body there, then submit it yourself. This page has not submitted anything."
