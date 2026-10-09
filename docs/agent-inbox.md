@@ -16,7 +16,7 @@ and boundaries. Ready requires a project and explicit work authorization.
 submit it on GitHub under your own account. Your local draft remains until you
 clear it. Opening the browser does not mean the request was submitted.
 
-From an iPad, use the browser companion or GitHub's New issue page. The two issue
+From an iPad, use the [private web companion](https://daymark-agent-inbox.silverline1996.chatgpt.site) or GitHub's New issue page. The two issue
 forms offer the same Idea/Ready choice after their PR is merged. Before then, you
 can submit a request with the documented title and body convention below.
 

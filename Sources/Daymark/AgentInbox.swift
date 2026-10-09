@@ -122,7 +122,7 @@ final class AgentInbox {
             for page in 1...20 {
                 try Task.checkCancellation()
                 let url = URL(string: "https://api.github.com/repos/Silverlin19/Daymark/issues?state=all&sort=updated&direction=desc&per_page=100&page=\(page)")!
-                var request = URLRequest(url: url)
+                var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
                 request.timeoutInterval = 30
                 request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
                 request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
@@ -135,7 +135,8 @@ final class AgentInbox {
                 if pageIssues.count < 100 { finished = true; break }
             }
             guard finished else { throw InboxFailure.tooManyIssues }
-            issues = fetched
+            var seen: Set<Int> = []
+            issues = fetched.filter { seen.insert($0.number).inserted }
             lastUpdated = .now
         } catch is CancellationError {
             // Leaving the screen cancels polling without displaying an error.

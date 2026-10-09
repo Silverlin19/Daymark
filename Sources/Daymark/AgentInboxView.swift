@@ -30,7 +30,8 @@ struct AgentInboxView: View {
                         Text("Requests here are public. Your tasks, focus notes, and reflections stay on this Mac.")
                             .foregroundStyle(.secondary)
                         HStack {
-                            Link("Open on iPad or GitHub", destination: URL(string: "https://github.com/Silverlin19/Daymark/issues")!)
+                            Link("Open web companion", destination: URL(string: "https://daymark-agent-inbox.silverline1996.chatgpt.site")!)
+                            Link("GitHub requests", destination: URL(string: "https://github.com/Silverlin19/Daymark/issues")!)
                             Spacer()
                             if let date = inbox.lastUpdated {
                                 Text("Updated \(date.formatted(date: .omitted, time: .shortened))").font(.caption).foregroundStyle(.secondary)
