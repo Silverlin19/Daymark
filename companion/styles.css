@@ -316,6 +316,36 @@ textarea { min-height: 96px; resize: vertical; }
   margin-top: 14px;
 }
 
+.preview-banner {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(250, 171, 64, 0.24);
+  border: 1px solid rgba(250, 171, 64, 0.5);
+  font-weight: 700;
+}
+
+.copy-label {
+  margin: 12px 0 4px;
+  font-weight: 700;
+}
+
+#copy-title,
+#copy-body {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+#copy-body {
+  font: inherit;
+  background: #fffdf9;
+  border: 1px solid rgba(26, 31, 41, 0.16);
+  border-radius: 12px;
+  padding: 12px 14px;
+  max-width: 100%;
+}
+
 .site-footer {
   margin-top: 28px;
   color: var(--muted);

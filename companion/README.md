@@ -1,8 +1,8 @@
 # Daymark Agent Inbox companion
 
-A buildless page for browsing public Daymark requests and opening a GitHub issue draft. It runs in the browser as HTML, CSS, and JavaScript. It does not take credentials, store tokens, or dispatch work.
+A buildless page for browsing public Daymark requests and opening a GitHub issue draft. It runs in the browser as HTML, CSS, and JavaScript.
 
-The inbox reads public issues in [Silverlin19/Daymark](https://github.com/Silverlin19/Daymark). Only titles that start with `[Daymark Idea] ` or `[Daymark Ready] ` are shown. Pull requests are left out. An Idea does not authorize work. A Ready request is an explicit work request that you still review and submit on GitHub yourself.
+The inbox reads public issues in [Silverlin19/Daymark](https://github.com/Silverlin19/Daymark). Only titles that start with `[Daymark Idea] ` or `[Daymark Ready] ` are shown. Cards show the subject without that prefix. Pull requests are left out. An idea is a note and does not start work. A Ready request asks for work, and you still review and submit it on GitHub.
 
 ## Run locally
 
@@ -24,16 +24,14 @@ From the repository root, with Node 22 or newer:
 node --test companion/*.test.mjs
 ```
 
-The tests cover prefix recognition, pull-request exclusion, status-label precedence, closed requests, URL encoding, the Ready authorization line, and the Idea no-action payload.
+The tests cover prefix recognition, pull-request exclusion, status-label precedence, closed requests, URL encoding, the shared Ready authorization line, the Idea no-action payload, native project headings, and rate-limit suppression.
 
 ## Example browser flow
 
 1. Open the page. It loads public issues from GitHub and shows a loading state, then the list or the empty state.
 2. Filter by recorded status. Tab to a request and follow **Open issue** to GitHub.
-3. Choose **Idea** or **Ready**. Fill the title, project (required for Ready), outcome, context, acceptance checks, and boundaries.
-4. Confirm the visibility checkbox. For Ready, also confirm the authorization checkbox.
-5. Choose **Review on GitHub**. A new tab opens GitHub's new-issue page with the title and body filled in. Read it there and submit it yourself. This page does not file the issue and does not say the request was sent.
-6. Or use **Open the Idea form on GitHub** / **Open the Ready form on GitHub**. Those forms require the same visibility confirmation, and the Ready form also requires authorization.
+3. Choose **Idea** or **Ready**. An idea needs a title, a requested outcome, and the visibility confirmation. Ready also needs a project, acceptance checks, boundaries, and the authorization checkbox. Context is optional for both.
+4. Choose **Review on GitHub**. The page tries to open GitHub's new-issue screen with the title and body filled in. The result text is always "Review and submit on GitHub; if no tab appeared, use the link below." Paste the shown title and body into [a new GitHub issue](https://github.com/Silverlin19/Daymark/issues/new) if the tab did not fill them in. Issue-form links are not offered here, because those forms work only after they are on the default branch.
 
 Recorded status on a card is the GitHub state and labels only:
 
@@ -44,7 +42,7 @@ Recorded status on a card is the GitHub state and labels only:
 - If several of those labels are present, that order wins.
 - Otherwise an open request is **Idea** or **Ready** from its title prefix.
 
-These local previews skip the network:
+These local previews skip the network and show a sample-data label:
 
 - <http://127.0.0.1:8080/?preview=sample>
 - <http://127.0.0.1:8080/?preview=empty>
@@ -55,15 +53,16 @@ These local previews skip the network:
 ## Limitations
 
 - There is no hosting integration. Serve the `companion` directory yourself.
-- Unauthenticated GitHub REST allows about 60 requests an hour for each IP. The page refreshes automatically at most once every 5 minutes, and only while the tab is visible. It does not poll a hidden tab. **Refresh** still runs when you choose it.
+- Unauthenticated GitHub REST allows about 60 requests an hour for each IP. The page refreshes automatically at most once every 5 minutes, and only while the tab is visible. It does not poll a hidden tab. A rate-limit response sets a deadline from `Retry-After` or `X-RateLimit-Reset` (60 seconds when neither is usable). Refresh and automatic reload both wait until that deadline.
 - Later pages load only through **Load more**, so a long list is not cut off without a control. A refresh starts again at the first page.
 - Status text is recorded GitHub state, not proof that an agent is running.
-- Drafts that would make a GitHub URL longer than 7500 characters are refused. Use the form links for a long request.
-- The prefilled composer depends on GitHub still accepting `issues/new?title&body`. The issue forms are the structured path.
+- Drafts that would make a GitHub URL longer than 7500 characters are refused. Shorten the note and paste it into a new GitHub issue.
+- The prefilled composer depends on GitHub still accepting `issues/new?title&body`. The visible fallback is the plain new-issue page plus the title and body to paste.
 
 ## Assumptions
 
 - Open-issue label precedence is `agent:needs-input`, then `agent:review`, then `agent:working`. Closed wins over every label.
-- Blank issues stay enabled so the prefilled title and body can open GitHub's classic new-issue screen. The YAML forms enforce their checkboxes when you use those links.
-- Project text is read from a `Project / repo:` line or a `### Project / repo` form heading.
-- Manual refresh is not held for five minutes. The five-minute cap applies to the automatic refresh.
+- Blank issues stay enabled so a prefilled title and body can open GitHub's classic new-issue screen. The YAML forms are for after they reach the default branch.
+- Project text is read from `Project / repo`, `Project / repository`, or a `### Project / repository` heading, including the body the Mac app writes.
+- Outside a rate-limit deadline, manual refresh is not held for five minutes. The five-minute cap applies to the automatic refresh, and a rate-limit deadline can extend that wait.
+- An idea requires a title, requested outcome, and visibility confirmation. Ready also requires a project, acceptance checks, boundaries, and the shared authorization sentence. Context is optional.

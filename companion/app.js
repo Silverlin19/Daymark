@@ -4,17 +4,21 @@ import {
   buildNewIssueUrl,
   classifyHttpFailure,
   commentLabel,
+  displaySubject,
   filterInboxIssues,
   fixtureIssues,
   formatUpdated,
   issuesApiUrl,
   matchesFilter,
   mergeIssues,
+  NEW_ISSUE_URL,
   nextAutoRefreshDelay,
   nextPageUrl,
   parseProject,
   PER_PAGE,
   rateLimitMessage,
+  requestGate,
+  REVIEW_ON_GITHUB_NOTE,
   safeGithubUrl,
   statusForIssue,
   statusSlug,
@@ -23,6 +27,7 @@ import {
 const PREVIEW_NAMES = new Set(["loading", "empty", "error", "rate-limit", "sample"]);
 
 const inbox = document.querySelector("#inbox");
+const previewBanner = document.querySelector("#preview-banner");
 const banner = document.querySelector("#inbox-banner");
 const alertBox = document.querySelector("#inbox-alert");
 const list = document.querySelector("#issue-list");
@@ -36,7 +41,12 @@ const projectHint = document.querySelector("#project-hint");
 const authorizationField = document.querySelector("#authorization-field");
 const errors = document.querySelector("#form-errors");
 const resultNote = document.querySelector("#composer-result");
+const copyPanel = document.querySelector("#copy-panel");
+const copyTitle = document.querySelector("#copy-title");
+const copyBody = document.querySelector("#copy-body");
 const fallback = document.querySelector("#composer-fallback");
+const acceptanceHint = document.querySelector("#acceptance-hint");
+const boundariesHint = document.querySelector("#boundaries-hint");
 
 const previewName = new URLSearchParams(window.location.search).get("preview");
 const state = {
@@ -49,6 +59,7 @@ const state = {
   alertMessage: "",
   filter: "all",
   lastFetchAt: 0,
+  retryUntil: 0,
   requestId: 0,
 };
 
@@ -74,6 +85,8 @@ function syncKind() {
   authorizationField.hidden = !ready;
   ideaNote.hidden = ready;
   projectHint.textContent = ready ? "Required for a Ready request." : "Optional for an idea.";
+  acceptanceHint.textContent = ready ? "Required for a Ready request." : "Optional for an idea.";
+  boundariesHint.textContent = ready ? "Required for a Ready request." : "Optional for an idea.";
 }
 
 function readFields() {
@@ -106,7 +119,8 @@ function issueCard(issue) {
   const article = node("article", "issue");
   article.dataset.status = statusSlug(status);
   article.append(node("p", `status status-${statusSlug(status)}`, status));
-  article.append(node("h3", null, issue.title || ""));
+  const subject = displaySubject(issue.title);
+  article.append(node("h3", null, subject || issue.title || ""));
   const project = parseProject(issue.body || "");
   article.append(node("p", "project", project ? `Project / repo: ${project}` : "No project listed"));
   article.append(node("p", "excerpt", bodyExcerpt(issue.body || "") || "No details in the issue body."));
@@ -130,6 +144,7 @@ function issueCard(issue) {
 }
 
 function render() {
+  previewBanner.hidden = !state.preview;
   inbox.dataset.state = state.phase;
   inbox.setAttribute("aria-busy", state.phase === "loading" ? "true" : "false");
   banner.textContent = state.banner;
@@ -190,7 +205,7 @@ function applyPreview(name) {
 
 function scheduleAutoRefresh() {
   window.clearTimeout(refreshTimer);
-  const delay = nextAutoRefreshDelay(state.lastFetchAt, Date.now(), document.hidden);
+  const delay = nextAutoRefreshDelay(state.lastFetchAt, Date.now(), document.hidden, state.retryUntil);
   if (delay == null) return;
   refreshTimer = window.setTimeout(() => {
     refreshTimer = 0;
@@ -200,13 +215,34 @@ function scheduleAutoRefresh() {
 }
 
 function setFailure(failure) {
+  if (failure.type === "rate-limit" && failure.retryUntil) state.retryUntil = failure.retryUntil;
   state.phase = failure.type === "rate-limit" ? "rate-limit" : "error";
   state.banner = state.issues.length ? "Showing the requests already loaded." : "";
   state.alertTitle = state.phase === "rate-limit" ? "GitHub rate limit" : "Couldn't load requests";
   state.alertMessage = failure.message;
 }
 
-async function load({ reset }) {
+async function load({ reset, manual = false }) {
+  if (!state.preview) {
+    const gate = requestGate({
+      now: Date.now(),
+      retryUntil: state.retryUntil,
+      hidden: document.hidden,
+      automatic: !manual,
+    });
+    if (!gate.allow) {
+      if (gate.reason === "rate-limit") {
+        state.phase = "rate-limit";
+        state.alertTitle = "GitHub rate limit";
+        state.alertMessage = rateLimitMessage({ retryAfter: String(Math.max(1, Math.ceil(gate.waitMs / 1000))) });
+        state.banner = state.issues.length ? "Showing the requests already loaded." : "";
+        render();
+      }
+      scheduleAutoRefresh();
+      return;
+    }
+  }
+
   if (state.preview) {
     if (!reset && state.preview === "sample") {
       state.nextUrl = null;
@@ -272,6 +308,7 @@ async function load({ reset }) {
       linkHeader: response.headers.get("Link"),
     });
     state.phase = "ready";
+    state.retryUntil = 0;
     state.alertTitle = "";
     state.alertMessage = "";
     const more = state.nextUrl ? " More pages are available." : "";
@@ -292,20 +329,20 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   const built = buildNewIssueUrl(readFields());
   resultNote.textContent = "";
+  copyPanel.hidden = true;
   fallback.hidden = true;
   if (!built.ok) {
     showErrors(built.errors);
     return;
   }
   showErrors([]);
-  fallback.href = built.url;
+  copyTitle.textContent = built.title;
+  copyBody.textContent = built.body;
+  copyPanel.hidden = false;
+  fallback.href = NEW_ISSUE_URL;
   fallback.hidden = false;
-  // A noopener feature makes window.open return null even when the tab opens.
-  const opened = window.open(built.url, "_blank");
-  if (opened) opened.opener = null;
-  resultNote.textContent = opened
-    ? "GitHub opened in a new tab. Review the title and body there, then submit it yourself. This page has not submitted anything."
-    : "The new tab was blocked. Use the link below to open GitHub, review the request, and submit it yourself. This page has not submitted anything.";
+  window.open(built.url, "_blank", "noopener,noreferrer");
+  resultNote.textContent = REVIEW_ON_GITHUB_NOTE;
 });
 
 form.addEventListener("change", (event) => {
@@ -313,11 +350,11 @@ form.addEventListener("change", (event) => {
 });
 
 refreshButton.addEventListener("click", () => {
-  void load({ reset: true });
+  void load({ reset: true, manual: true });
 });
 
 loadMoreButton.addEventListener("click", () => {
-  void load({ reset: false });
+  void load({ reset: false, manual: true });
 });
 
 for (const input of filterInputs) {
@@ -343,4 +380,4 @@ document.addEventListener("visibilitychange", () => {
 });
 
 syncKind();
-void load({ reset: true });
+void load({ reset: true, manual: true });

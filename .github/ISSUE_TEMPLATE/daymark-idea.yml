@@ -7,12 +7,12 @@ body:
       value: |
         This publishes a public issue in Silverlin19/Daymark. Personal planner data stays local. Keep the title prefix exactly `[Daymark Idea] `, including the trailing space.
 
-        No work is authorized. This idea must not dispatch an agent or start implementation.
+        This is an idea only. Do not start work. A title, the requested outcome, and the visibility confirmation are enough.
   - type: input
     id: project
     attributes:
-      label: Project / repo
-      description: Optional for an idea. Name the project or repository if you have one.
+      label: Project / repository
+      description: Optional for an idea.
       placeholder: owner/repo
     validations:
       required: false
@@ -28,23 +28,23 @@ body:
     id: context
     attributes:
       label: Context
-      description: Background a reader needs. Leave private planner data on the device.
+      description: Optional. Background a reader needs. Leave private planner data on the device.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: acceptance
     attributes:
       label: Acceptance checks
-      description: How will someone tell the outcome is met?
+      description: Optional for an idea.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: boundaries
     attributes:
       label: Boundaries
-      description: What is out of scope?
+      description: Optional for an idea.
     validations:
-      required: true
+      required: false
   - type: checkboxes
     id: visibility
     attributes:

@@ -7,10 +7,12 @@ import {
   IDEA_PREFIX,
   KIND,
   MAX_ISSUE_URL_LENGTH,
+  NEW_ISSUE_URL,
   PER_PAGE,
   READY_AUTHORIZATION,
   READY_PREFIX,
   REFRESH_INTERVAL_MS,
+  REVIEW_ON_GITHUB_NOTE,
   STATUS,
   VISIBILITY_CONFIRMATION,
   bodyExcerpt,
@@ -18,6 +20,7 @@ import {
   buildRequestBody,
   classifyHttpFailure,
   commentLabel,
+  displaySubject,
   filterInboxIssues,
   fixtureIssues,
   formatUpdated,
@@ -29,9 +32,9 @@ import {
   parseNextLink,
   parseProject,
   recognizeKind,
+  requestGate,
   safeGithubUrl,
   statusForIssue,
-  templateUrl,
 } from "./protocol.mjs";
 
 const ideaFields = {
@@ -231,7 +234,32 @@ test("Ready payload records the authorization checkbox and Idea performs no acti
   assert.equal(ideaUrl.pathname, "/Silverlin19/Daymark/issues/new");
   assert.deepEqual([...ideaUrl.searchParams.keys()].sort(), ["body", "title"]);
   assert.equal(idea.title.startsWith(IDEA_PREFIX), true);
-  assert.match(idea.body, /Project \/ repo: \(not specified\)/);
+  assert.equal(parseProject(idea.body), "");
+
+  const quickIdea = buildNewIssueUrl({
+    kind: KIND.IDEA,
+    subject: "A note",
+    project: "",
+    outcome: "Remember this",
+    context: "",
+    acceptance: "",
+    boundaries: "",
+    visibilityConfirmed: true,
+    authorized: true,
+  });
+  assert.equal(quickIdea.ok, true);
+  assert.ok(quickIdea.body.includes(IDEA_NO_ACTION));
+  assert.equal(quickIdea.body.includes(READY_AUTHORIZATION), false);
+  assert.equal(quickIdea.errors.length, 0);
+
+  const readyWithoutContext = buildNewIssueUrl({ ...readyFields, context: "  " });
+  assert.equal(readyWithoutContext.ok, true);
+  const readyWithoutChecks = buildNewIssueUrl({ ...readyFields, acceptance: "" });
+  assert.equal(readyWithoutChecks.ok, false);
+  assert.match(readyWithoutChecks.errors.join("\n"), /Acceptance checks/);
+  const readyWithoutBoundaries = buildNewIssueUrl({ ...readyFields, boundaries: "" });
+  assert.equal(readyWithoutBoundaries.ok, false);
+  assert.match(readyWithoutBoundaries.errors.join("\n"), /Boundaries/);
 
   const privateIdea = buildNewIssueUrl({ ...ideaFields, visibilityConfirmed: false });
   assert.equal(privateIdea.ok, false);
@@ -249,10 +277,8 @@ test("refuses an oversized prefill instead of opening a truncated link", () => {
   assert.match(huge.errors.join(" "), /too long/i);
 });
 
-test("template links and the public issues URL carry no credentials", () => {
-  assert.equal(templateUrl(KIND.IDEA), "https://github.com/Silverlin19/Daymark/issues/new?template=daymark-idea.yml");
-  assert.equal(templateUrl(KIND.READY), "https://github.com/Silverlin19/Daymark/issues/new?template=daymark-ready.yml");
-  assert.equal(templateUrl("other"), null);
+test("the public issues URL carries no credentials", () => {
+  assert.equal(NEW_ISSUE_URL, "https://github.com/Silverlin19/Daymark/issues/new");
   const api = new URL(issuesApiUrl(2));
   assert.equal(api.origin, "https://api.github.com");
   assert.equal(api.pathname, "/repos/Silverlin19/Daymark/issues");
@@ -275,6 +301,36 @@ test("reads project and outcome excerpts from composer text and GitHub forms", (
   assert.equal(bodyExcerpt(form), "Form excerpt should show.");
   const named = "### Project / repo\r\n\r\nowner/repo\r\n";
   assert.equal(parseProject(named), "owner/repo");
+  const native = [
+    "### Project / repository",
+    "Silverlin19/Daymark",
+    "",
+    "### Requested outcome",
+    "Ship the inbox",
+    "",
+    "### Context",
+    "From the Mac app",
+    "",
+    "### Acceptance checks",
+    "The card shows the project",
+    "",
+    "### Boundaries",
+    "Leave planner data local",
+    "",
+    "### Visibility",
+    "- [x] I understand this request is public on GitHub. I have excluded secrets and private planner data.",
+    "",
+    "### Authorization",
+    `- [x] ${READY_AUTHORIZATION}`,
+    "",
+  ].join("\n");
+  assert.equal(parseProject(native), "Silverlin19/Daymark");
+  assert.equal(bodyExcerpt(native), "Ship the inbox");
+  assert.equal(parseProject("Project / repository: native/app"), "native/app");
+  assert.equal(displaySubject("[Daymark Idea] <script>alert(1)</script>"), "<script>alert(1)</script>");
+  assert.equal(displaySubject("[Daymark Ready] Ship it"), "Ship it");
+  assert.equal(displaySubject("[Daymark Idea] "), "");
+  assert.equal(displaySubject("weekly notes"), "weekly notes");
   assert.equal(commentLabel(0), "0 comments");
   assert.equal(commentLabel(1), "1 comment");
   assert.equal(commentLabel(4), "4 comments");
@@ -305,10 +361,49 @@ test("classifies rate limits separately from other HTTP failures", () => {
   assert.match(classifyHttpFailure(429, headers, "").message, /42 seconds/);
   const now = Date.parse("2026-04-02T00:00:00Z");
   const reset = String((now + 120000) / 1000);
-  assert.match(
-    classifyHttpFailure(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": reset }, "", now).message,
-    /2 minutes/,
+  const limited = classifyHttpFailure(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": reset }, "", now);
+  assert.match(limited.message, /2 minutes/);
+  assert.equal(limited.retryUntil, now + 120000);
+  const both = classifyHttpFailure(
+    429,
+    { "retry-after": "30", "x-ratelimit-reset": String((now + 180000) / 1000) },
+    "",
+    now,
   );
+  assert.equal(both.retryUntil, now + 180000);
+  const bare = classifyHttpFailure(429, {}, "API rate limit exceeded", now);
+  assert.equal(bare.retryUntil, now + 60_000);
+});
+
+test("suppresses network requests until the rate-limit deadline expires", () => {
+  const fetches = [];
+  let retryUntil = null;
+  function attempt(now, manual) {
+    const gate = requestGate({ now, retryUntil, hidden: false, automatic: !manual });
+    if (!gate.allow) return gate;
+    fetches.push(now);
+    if (fetches.length === 1) {
+      const failure = classifyHttpFailure(429, { "retry-after": "60", "x-ratelimit-remaining": "0" }, "rate limit", now);
+      assert.equal(failure.type, "rate-limit");
+      assert.equal(failure.retryUntil, now + 60_000);
+      retryUntil = failure.retryUntil;
+    }
+    return { allow: true, reason: "ok", waitMs: 0 };
+  }
+
+  const started = 1_700_000_000_000;
+  assert.equal(attempt(started, true).allow, true);
+  assert.deepEqual(fetches, [started]);
+  const manual = attempt(started + 30_000, true);
+  const automatic = attempt(started + 30_000, false);
+  assert.equal(manual.allow, false);
+  assert.equal(manual.reason, "rate-limit");
+  assert.equal(automatic.allow, false);
+  assert.equal(automatic.reason, "rate-limit");
+  assert.deepEqual(fetches, [started]);
+  assert.equal(attempt(started + 60_000, true).allow, true);
+  assert.equal(attempt(started + 60_000, false).allow, true);
+  assert.deepEqual(fetches, [started, started + 60_000, started + 60_000]);
 });
 
 test("automatic refresh waits five minutes and does not run while hidden", () => {
@@ -317,6 +412,8 @@ test("automatic refresh waits five minutes and does not run while hidden", () =>
   assert.equal(nextAutoRefreshDelay(0, 5000, false), REFRESH_INTERVAL_MS);
   assert.equal(nextAutoRefreshDelay(1000, 1000 + REFRESH_INTERVAL_MS, false), 0);
   assert.equal(nextAutoRefreshDelay(1000, 2000, false), REFRESH_INTERVAL_MS - 1000);
+  assert.equal(nextAutoRefreshDelay(1000, 1000, false, 1000 + 60_000), REFRESH_INTERVAL_MS);
+  assert.equal(nextAutoRefreshDelay(1000, 1000, false, 1000 + 600_000), 600_000);
 });
 
 test("issue forms require visibility, and Ready requires authorization", () => {
@@ -335,6 +432,13 @@ test("issue forms require visibility, and Ready requires authorization", () => {
   const readyProject = ready.slice(ready.indexOf("id: project"), ready.indexOf("id: outcome"));
   assert.match(ideaProject, /required:\s*false/);
   assert.match(readyProject, /required:\s*true/);
+  const between = (yaml, start, end) => yaml.slice(yaml.indexOf(`id: ${start}`), yaml.indexOf(`id: ${end}`));
+  assert.match(between(idea, "context", "acceptance"), /required:\s*false/);
+  assert.match(between(idea, "acceptance", "boundaries"), /required:\s*false/);
+  assert.match(between(idea, "boundaries", "visibility"), /required:\s*false/);
+  assert.match(between(ready, "context", "acceptance"), /required:\s*false/);
+  assert.match(between(ready, "acceptance", "boundaries"), /required:\s*true/);
+  assert.match(between(ready, "boundaries", "visibility"), /required:\s*true/);
   assert.match(config, /blank_issues_enabled:\s*true/);
 });
 
@@ -350,20 +454,27 @@ test("the page renders through textContent and does not carry credentials", () =
     assert.doesNotMatch(source, /ghp_[A-Za-z0-9]/);
     assert.doesNotMatch(source, /github_pat_/);
     assert.doesNotMatch(source, /access_token/);
-    assert.doesNotMatch(source, /Authorization/);
+    assert.doesNotMatch(source, /["']Authorization["']/);
+    assert.doesNotMatch(source, /Authorization\s*:\s*Bearer/);
   }
   assert.match(app, /textContent/);
   assert.match(app, /filterInboxIssues/);
   assert.match(app, /buildNewIssueUrl/);
   assert.match(app, /classifyHttpFailure/);
+  assert.match(app, /requestGate/);
   assert.match(app, /nextAutoRefreshDelay/);
   assert.match(app, /visibilitychange/);
   assert.match(app, /document\.hidden/);
   assert.match(app, /credentials:\s*"omit"/);
+  assert.match(app, /noopener,noreferrer/);
+  assert.ok(app.indexOf("requestGate") < app.indexOf("fetch("));
   assert.ok(html.includes(VISIBILITY_CONFIRMATION));
   assert.ok(html.includes(IDEA_NO_ACTION));
   assert.ok(html.includes(READY_AUTHORIZATION));
-  assert.ok(html.includes(templateUrl(KIND.IDEA)));
-  assert.ok(html.includes(templateUrl(KIND.READY)));
-  assert.doesNotMatch(`${app}\n${html}`, /request sent|successfully sent|issue created/i);
+  assert.ok(html.includes(NEW_ISSUE_URL));
+  assert.ok(html.includes(REVIEW_ON_GITHUB_NOTE));
+  assert.ok(html.includes("Sample data"));
+  assert.equal(html.includes("template="), false);
+  assert.equal(app.includes("new tab was blocked"), false);
+  assert.doesNotMatch(`${app}\n${html}`, /request sent|successfully sent|issue created|GitHub credential|stores a token/i);
 });

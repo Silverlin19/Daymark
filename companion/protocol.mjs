@@ -35,10 +35,13 @@ export const VISIBILITY_CONFIRMATION =
   "I understand this request will be public on GitHub and that personal planner data stays local.";
 
 export const READY_AUTHORIZATION =
-  "I authorize this as an explicit work request. Codex may scope it and hand off to Grok. The browser does not dispatch work.";
+  "I authorize Codex to scope and carry out this request, including delegating to Grok Bot. Merging and deploying require separate authorization.";
 
-export const IDEA_NO_ACTION =
-  "No work is authorized. This idea must not dispatch an agent or start implementation.";
+export const IDEA_NO_ACTION = "This is an idea only. Do not start work.";
+
+export const NEW_ISSUE_URL = `https://github.com/${REPO_SLUG}/issues/new`;
+export const REVIEW_ON_GITHUB_NOTE =
+  "Review and submit on GitHub; if no tab appeared, use the link below.";
 
 export const PER_PAGE = 30;
 export const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -146,10 +149,10 @@ export function normalizeBody(body) {
 
 export function parseProject(body) {
   const text = normalizeBody(body);
-  const labeled = text.match(/^Project \/ repo:\s*(.*)$/m);
+  const labeled = text.match(/^Project \/ repo(?:sitory)?:\s*(.*)$/im);
   const fromLabel = cleanProject(labeled && labeled[1]);
   if (fromLabel) return fromLabel;
-  const heading = text.match(/###\s*Project\s*\/\s*repo\s*\n+([^\n]+)/i);
+  const heading = text.match(/###\s*Project\s*\/\s*repo(?:sitory)?\s*\n+([^\n]+)/i);
   return cleanProject(heading && heading[1]);
 }
 
@@ -210,6 +213,13 @@ export function composeTitle(kind, subject) {
   return prefix + String(subject || "").trim();
 }
 
+export function displaySubject(title) {
+  const kind = recognizeKind(title);
+  if (kind === KIND.READY) return title.slice(READY_PREFIX.length).trim();
+  if (kind === KIND.IDEA) return title.slice(IDEA_PREFIX.length).trim();
+  return typeof title === "string" ? title.trim() : "";
+}
+
 export function buildRequestBody(fields) {
   const kind = fields && fields.kind === KIND.READY ? KIND.READY : KIND.IDEA;
   const project = String(fields?.project || "").trim();
@@ -217,29 +227,16 @@ export function buildRequestBody(fields) {
   const context = String(fields?.context || "").trim();
   const acceptance = String(fields?.acceptance || "").trim();
   const boundaries = String(fields?.boundaries || "").trim();
-  const lines = [
-    `Project / repo: ${project || "(not specified)"}`,
-    "",
-    "Requested outcome:",
-    outcome,
-    "",
-    "Context:",
-    context,
-    "",
-    "Acceptance checks:",
-    acceptance,
-    "",
-    "Boundaries:",
-    boundaries,
-    "",
-    "Visibility:",
-    `- [x] ${VISIBILITY_CONFIRMATION}`,
-    "",
-    "Work authorization:",
-  ];
-  if (kind === KIND.READY) lines.push(`- [x] ${READY_AUTHORIZATION}`);
+  const lines = [];
+  if (project) lines.push("### Project / repository", project, "");
+  lines.push("### Requested outcome", outcome, "");
+  if (context) lines.push("### Context", context, "");
+  if (acceptance) lines.push("### Acceptance checks", acceptance, "");
+  if (boundaries) lines.push("### Boundaries", boundaries, "");
+  lines.push("### Visibility", `- [x] ${VISIBILITY_CONFIRMATION}`, "");
+  if (kind === KIND.READY) lines.push("### Authorization", `- [x] ${READY_AUTHORIZATION}`);
   else lines.push(IDEA_NO_ACTION);
-  return lines.join("\n");
+  return lines.join("\n").trim();
 }
 
 export function validateRequest(fields) {
@@ -257,17 +254,14 @@ export function validateRequest(fields) {
   ) {
     errors.push("Enter the subject only. The Idea or Ready prefix is added for you.");
   } else if (subject.length > MAX_SUBJECT_LENGTH) errors.push("Title is too long.");
-  if (kind === KIND.READY && !String(fields?.project || "").trim()) {
-    errors.push("Project / repo is required for a Ready request.");
-  }
   if (!String(fields?.outcome || "").trim()) errors.push("Requested outcome is required.");
-  if (!String(fields?.context || "").trim()) errors.push("Context is required.");
-  if (!String(fields?.acceptance || "").trim()) errors.push("Acceptance checks are required.");
-  if (!String(fields?.boundaries || "").trim()) errors.push("Boundaries are required.");
-  if (!fields?.visibilityConfirmed) errors.push("Confirm that you understand this request is public.");
-  if (kind === KIND.READY && !fields?.authorized) {
-    errors.push("Ready requests require an explicit authorization checkbox.");
+  if (kind === KIND.READY) {
+    if (!String(fields?.project || "").trim()) errors.push("Project / repository is required for a Ready request.");
+    if (!String(fields?.acceptance || "").trim()) errors.push("Acceptance checks are required for a Ready request.");
+    if (!String(fields?.boundaries || "").trim()) errors.push("Boundaries are required for a Ready request.");
+    if (!fields?.authorized) errors.push("Ready requests require an explicit authorization checkbox.");
   }
+  if (!fields?.visibilityConfirmed) errors.push("Confirm that you understand this request is public.");
   return errors;
 }
 
@@ -288,7 +282,7 @@ export function buildNewIssueUrl(fields) {
     return {
       ok: false,
       errors: [
-        "This request is too long to prefill a GitHub link. Shorten the fields or use the Idea or Ready form on GitHub.",
+        "This request is too long to prefill a GitHub link. Shorten the fields, then paste the title and body into a new GitHub issue.",
       ],
       url: null,
       title: null,
@@ -296,12 +290,6 @@ export function buildNewIssueUrl(fields) {
     };
   }
   return { ok: true, errors: [], url, title, body };
-}
-
-export function templateUrl(kind) {
-  if (kind === KIND.READY) return `https://github.com/${REPO_SLUG}/issues/new?template=daymark-ready.yml`;
-  if (kind === KIND.IDEA) return `https://github.com/${REPO_SLUG}/issues/new?template=daymark-idea.yml`;
-  return null;
 }
 
 export function issuesApiUrl(page = 1) {
@@ -357,6 +345,22 @@ function headerGet(headers, name) {
   return String(headers[key]);
 }
 
+export function retryDeadline(headers, now) {
+  const retryAfter = headerGet(headers, "retry-after");
+  const reset = headerGet(headers, "x-ratelimit-reset");
+  let until = null;
+  if (typeof retryAfter === "string" && /^\d+$/.test(retryAfter)) until = now + Number(retryAfter) * 1000;
+  else if (typeof retryAfter === "string" && retryAfter) {
+    const parsed = Date.parse(retryAfter);
+    if (!Number.isNaN(parsed)) until = parsed;
+  }
+  if (typeof reset === "string" && /^\d+$/.test(reset)) {
+    const resetMs = Number(reset) * 1000;
+    until = until == null ? resetMs : Math.max(until, resetMs);
+  }
+  return until;
+}
+
 export function classifyHttpFailure(status, headers, bodyText, now = Date.now()) {
   const remaining = headerGet(headers, "x-ratelimit-remaining");
   const retryAfter = headerGet(headers, "retry-after");
@@ -364,19 +368,33 @@ export function classifyHttpFailure(status, headers, bodyText, now = Date.now())
   const text = typeof bodyText === "string" ? bodyText : "";
   const rateLimited = status === 429 || (status === 403 && remaining === "0") || /rate limit/i.test(text);
   if (rateLimited) {
+    const parsed = retryDeadline(headers, now);
+    const retryUntil = parsed == null || parsed <= now ? now + 60_000 : parsed;
     let resetSeconds = null;
     if (reset && /^\d+$/.test(reset)) resetSeconds = Math.round(Number(reset) * 1000 - now) / 1000;
-    return { type: "rate-limit", message: rateLimitMessage({ retryAfter, resetSeconds }) };
+    return { type: "rate-limit", message: rateLimitMessage({ retryAfter, resetSeconds }), retryUntil };
   }
   const code = Number.isFinite(status) ? status : 0;
-  return { type: "error", message: `GitHub request failed (${code}).` };
+  return { type: "error", message: `GitHub request failed (${code}).`, retryUntil: null };
 }
 
-export function nextAutoRefreshDelay(lastFetchAt, now, hidden) {
+export function requestGate({ now, retryUntil, hidden = false, automatic = false } = {}) {
+  if (typeof retryUntil === "number" && now < retryUntil) {
+    return { allow: false, reason: "rate-limit", waitMs: retryUntil - now };
+  }
+  if (automatic && hidden) return { allow: false, reason: "hidden", waitMs: null };
+  return { allow: true, reason: "ok", waitMs: 0 };
+}
+
+export function nextAutoRefreshDelay(lastFetchAt, now, hidden, retryUntil = null) {
   if (hidden) return null;
-  if (typeof lastFetchAt !== "number" || lastFetchAt <= 0) return REFRESH_INTERVAL_MS;
-  const remaining = REFRESH_INTERVAL_MS - (now - lastFetchAt);
-  return remaining <= 0 ? 0 : remaining;
+  let wait = REFRESH_INTERVAL_MS;
+  if (typeof lastFetchAt === "number" && lastFetchAt > 0) {
+    const remaining = REFRESH_INTERVAL_MS - (now - lastFetchAt);
+    wait = remaining <= 0 ? 0 : remaining;
+  }
+  if (typeof retryUntil === "number" && retryUntil > now) wait = Math.max(wait, retryUntil - now);
+  return wait;
 }
 
 export function fixtureIssues() {

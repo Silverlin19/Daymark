@@ -13,7 +13,7 @@
       <header class="site-header">
         <p class="eyebrow">Daymark</p>
         <h1>Agent Inbox</h1>
-        <p class="lede">Public Idea and Ready requests for Silverlin19/Daymark. This page never asks for a GitHub credential, and it cannot see the local planner.</p>
+        <p class="lede">Public Idea and Ready requests for Silverlin19/Daymark. An idea is a note. Ready means you are asking for work, which you review and submit on GitHub.</p>
       </header>
 
       <div class="layout">
@@ -58,6 +58,7 @@
             </label>
           </fieldset>
 
+          <p id="preview-banner" class="preview-banner" hidden>Sample data. These are not live GitHub requests.</p>
           <p id="inbox-banner" class="fine" role="status">Loading public requests…</p>
           <div id="inbox-alert" class="alert" role="alert" hidden></div>
           <div id="issue-list" class="issues"></div>
@@ -72,7 +73,7 @@
 
           <form id="composer" class="composer" autocomplete="off" novalidate>
             <h2 id="composer-title">New request</h2>
-            <p class="fine">Review on GitHub opens a prefilled page. You submit it there, under your own account. Opening the page does not file the request.</p>
+            <p class="fine">An idea needs a title, a note, and the visibility confirmation. Ready also needs a project, acceptance checks, boundaries, and work authorization. You still submit it on GitHub.</p>
 
             <fieldset class="kind">
               <legend>Request type</legend>
@@ -86,7 +87,7 @@
               </label>
             </fieldset>
 
-            <p id="idea-note" class="callout">No work is authorized. This idea must not dispatch an agent or start implementation.</p>
+            <p id="idea-note" class="callout">This is an idea only. Do not start work.</p>
 
             <label class="field" for="subject">
               Title
@@ -95,7 +96,7 @@
             </label>
 
             <label class="field" for="project">
-              Project / repo
+              Project / repository
               <span class="hint" id="project-hint">Optional for an idea.</span>
               <input id="project" name="project" type="text" placeholder="owner/repo" aria-describedby="project-hint">
             </label>
@@ -107,18 +108,20 @@
 
             <label class="field" for="context">
               Context
-              <span class="hint">Leave private planner details out.</span>
-              <textarea id="context" name="context" required></textarea>
+              <span class="hint" id="context-hint">Optional. Leave private planner details out.</span>
+              <textarea id="context" name="context" aria-describedby="context-hint"></textarea>
             </label>
 
             <label class="field" for="acceptance">
               Acceptance checks
-              <textarea id="acceptance" name="acceptance" required></textarea>
+              <span class="hint" id="acceptance-hint">Optional for an idea.</span>
+              <textarea id="acceptance" name="acceptance" aria-describedby="acceptance-hint"></textarea>
             </label>
 
             <label class="field" for="boundaries">
               Boundaries
-              <textarea id="boundaries" name="boundaries" required></textarea>
+              <span class="hint" id="boundaries-hint">Optional for an idea.</span>
+              <textarea id="boundaries" name="boundaries" aria-describedby="boundaries-hint"></textarea>
             </label>
 
             <label class="check" for="visibility">
@@ -129,30 +132,33 @@
             <div id="authorization-field" hidden>
               <label class="check" for="authorization">
                 <input id="authorization" name="authorization" type="checkbox">
-                <span>I authorize this as an explicit work request. Codex may scope it and hand off to Grok. The browser does not dispatch work.</span>
+                <span>I authorize Codex to scope and carry out this request, including delegating to Grok Bot. Merging and deploying require separate authorization.</span>
               </label>
             </div>
 
             <ul id="form-errors" class="errors" tabindex="-1" role="alert" hidden></ul>
             <p id="composer-result" class="callout" role="status"></p>
             <button id="review" class="primary" type="submit">Review on GitHub</button>
+            <p class="fine">Review and submit on GitHub; if no tab appeared, use the link below.</p>
+            <div id="copy-panel" hidden>
+              <p class="fine">Paste this title and body into the GitHub issue if the new tab did not fill them in.</p>
+              <p class="copy-label">Title</p>
+              <p id="copy-title"></p>
+              <p class="copy-label">Body</p>
+              <pre id="copy-body"></pre>
+            </div>
             <p class="fine" id="fallback-row">
-              <a id="composer-fallback" href="https://github.com/Silverlin19/Daymark/issues/new" hidden>Open the prefilled GitHub page</a>
+              <a id="composer-fallback" href="https://github.com/Silverlin19/Daymark/issues/new" hidden>Open a new GitHub issue<span class="sr-only"> (opens in a new tab)</span></a>
             </p>
           </form>
-
-          <nav class="template-links" aria-label="GitHub issue forms">
-            <a id="idea-template" href="https://github.com/Silverlin19/Daymark/issues/new?template=daymark-idea.yml" target="_blank" rel="noopener noreferrer">Open the Idea form on GitHub<span class="sr-only"> (opens in a new tab)</span></a>
-            <a id="ready-template" href="https://github.com/Silverlin19/Daymark/issues/new?template=daymark-ready.yml" target="_blank" rel="noopener noreferrer">Open the Ready form on GitHub<span class="sr-only"> (opens in a new tab)</span></a>
-          </nav>
           <noscript>
-            <p>JavaScript is off, so the live inbox cannot load. The Idea and Ready links above still open GitHub.</p>
+            <p>JavaScript is off, so the live inbox cannot load. You can still <a href="https://github.com/Silverlin19/Daymark/issues/new">open a new GitHub issue</a> and paste your request.</p>
           </noscript>
         </section>
       </div>
 
       <footer class="site-footer">
-        <p>Automatic refresh runs at most once every 5 minutes, and only while this tab is visible. Manual refresh is always available. Nothing on this page stores a token or starts work by itself.</p>
+        <p>While this tab is open, the list refreshes about every 5 minutes. After GitHub limits requests, refresh waits until that limit lifts.</p>
       </footer>
     </div>
     <script type="module" src="./app.js"></script>
