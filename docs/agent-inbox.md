@@ -9,8 +9,9 @@ or Grok Bot credential is needed in either interface.
 
 In Daymark, choose **Agent Inbox → New request**. Your draft saves on this Mac
 using app preferences. Choose **Idea** to save a thought, or **Ready** to request
-work. Fill in the project/repository, requested outcome, context, acceptance checks,
-and boundaries. Ready requires a project and explicit work authorization.
+work. An Idea needs only a title and note/outcome plus visibility confirmation;
+project, context, checks, and boundaries are optional. Ready also requires a project,
+acceptance checks, boundaries, and explicit work authorization. Context is optional.
 
 **Review on GitHub** opens a prefilled issue. Nothing is sent until you review and
 submit it on GitHub under your own account. Your local draft remains until you

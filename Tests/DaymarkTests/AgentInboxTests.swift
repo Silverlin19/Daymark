@@ -44,6 +44,23 @@ final class AgentInboxTests: XCTestCase {
         XCTAssertFalse(ideaItems?.first { $0.name == "body" }?.value?.contains("- [x] I authorize") ?? true)
     }
 
+    func testQuickIdeaAndReadyValidationAndLongDraftLimits() {
+        var draft = AgentRequestDraft(title: "A quick idea", project: "", outcome: "Consider a quieter timer", context: "", checks: "", boundaries: "", kind: .idea, acknowledgesPublic: true, authorizesWork: false)
+        XCTAssertNotNil(draft.issueURL)
+        draft.kind = .ready
+        draft.authorizesWork = true
+        draft.project = "Silverlin19/Daymark"
+        XCTAssertNil(draft.issueURL)
+        draft.checks = "Timer still works"
+        draft.boundaries = "No changes to planner data"
+        XCTAssertNotNil(draft.issueURL)
+        draft.title = String(repeating: "a", count: 201)
+        XCTAssertNil(draft.issueURL)
+        draft.title = "Short title"
+        draft.context = String(repeating: "long context ", count: 1000)
+        XCTAssertNil(draft.issueURL)
+    }
+
     @MainActor
     func testRefreshRetainsLastResultsOnRateLimit() async throws {
         let stub = StubTransport()

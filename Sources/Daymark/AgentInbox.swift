@@ -66,9 +66,12 @@ struct AgentRequestDraft {
     var authorizesWork: Bool
 
     var canSubmit: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && title.count <= 200 &&
         !outcome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && acknowledgesPublic &&
-        (kind == .idea || (authorizesWork && !project.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+        (kind == .idea || (authorizesWork &&
+            !project.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !checks.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !boundaries.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
     }
 
     var issueURL: URL? {
@@ -95,7 +98,8 @@ struct AgentRequestDraft {
         """ + (kind == .ready ? "\n\n### Authorization\n- [x] I authorize Codex to scope and carry out this request, including delegating to Grok Bot. Merging and deploying require separate authorization.\n" : "\n\nThis is an idea only. Do not start work.\n")
         var components = URLComponents(string: "https://github.com/Silverlin19/Daymark/issues/new")!
         components.queryItems = [URLQueryItem(name: "title", value: kind.prefix + cleanTitle), URLQueryItem(name: "body", value: body)]
-        return components.url
+        guard let url = components.url, url.absoluteString.count <= 7500 else { return nil }
+        return url
     }
 }
 

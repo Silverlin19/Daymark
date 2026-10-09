@@ -166,17 +166,22 @@ private struct AgentRequestComposer: View {
                 TextField("Title", text: $title)
                 TextField("Project / repository", text: $project)
                 TextField("Requested outcome", text: $outcome, axis: .vertical).lineLimit(2...4)
-                TextField("Context", text: $context, axis: .vertical).lineLimit(2...4)
+                TextField("Context (optional)", text: $context, axis: .vertical).lineLimit(2...4)
                 TextField("Acceptance checks", text: $checks, axis: .vertical).lineLimit(2...3)
                 TextField("Boundaries", text: $boundaries, axis: .vertical).lineLimit(2...3)
                 Toggle("I understand this request will be public on GitHub.", isOn: $acknowledgesPublic)
                 if draft.kind == .ready {
                     Toggle("I authorize Codex to carry out this request and delegate to Grok Bot.", isOn: $authorizesWork)
-                    Text("Ready requests need a project. Merging and deploying require separate authorization.").font(.caption).foregroundStyle(.secondary)
+                    Text("Ready requests need a project, acceptance checks, and boundaries. Merging and deploying require separate authorization.").font(.caption).foregroundStyle(.secondary)
                 } else {
                     Text("Ideas are for discussion; they do not start work.").font(.caption).foregroundStyle(.secondary)
                 }
             }.formStyle(.grouped)
+            if title.count > 200 {
+                Text("Keep the title to 200 characters or fewer.").font(.caption).foregroundStyle(DaymarkTheme.coral)
+            } else if draft.canSubmit && draft.issueURL == nil {
+                Text("This draft is too long to open as a link. Shorten it before reviewing on GitHub.").font(.caption).foregroundStyle(DaymarkTheme.coral)
+            }
             if openedGitHub { Text("Draft opened on GitHub. Review it and press Submit new issue there to send it.").font(.caption).foregroundStyle(DaymarkTheme.indigo) }
             HStack {
                 Button("Clear draft") {
@@ -186,7 +191,7 @@ private struct AgentRequestComposer: View {
                 Spacer()
                 Button("Review on GitHub") {
                     if let url = draft.issueURL { openURL(url); openedGitHub = true }
-                }.buttonStyle(.borderedProminent).tint(DaymarkTheme.indigo).disabled(!draft.canSubmit)
+                }.buttonStyle(.borderedProminent).tint(DaymarkTheme.indigo).disabled(draft.issueURL == nil)
             }
         }.padding(24).frame(width: 660, height: 670)
     }
