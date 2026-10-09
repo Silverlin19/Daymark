@@ -62,6 +62,20 @@ final class AgentInboxTests: XCTestCase {
     }
 
     @MainActor
+    func testRefreshDeduplicatesAcrossChangingPages() async throws {
+        let stub = StubTransport()
+        stub.paginate = true
+        stub.duplicate = true
+        InboxURLProtocol.transport = stub
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [InboxURLProtocol.self]
+        let inbox = AgentInbox(session: URLSession(configuration: configuration))
+        await inbox.refresh()
+        XCTAssertEqual(stub.pages, ["1", "2"])
+        XCTAssertEqual(inbox.issues.count, 1)
+    }
+
+    @MainActor
     func testRefreshPaginatesBeforePublishing() async throws {
         let stub = StubTransport()
         stub.paginate = true
@@ -79,6 +93,7 @@ final class AgentInboxTests: XCTestCase {
 private final class StubTransport: @unchecked Sendable {
     var status = 200
     var paginate = false
+    var duplicate = false
     var pages: [String] = []
     func response(_ request: URLRequest) -> (Int, Data) {
         let page = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first { $0.name == "page" }!.value!
@@ -87,7 +102,7 @@ private final class StubTransport: @unchecked Sendable {
         var items = [base]
         if paginate && page == "1" {
             var unrelated = base
-            unrelated["title"] = "Unrelated"
+            unrelated["title"] = duplicate ? "[Daymark Idea] Test" : "Unrelated"
             items = Array(repeating: unrelated, count: 100)
         }
         return (status, try! JSONSerialization.data(withJSONObject: items))
