@@ -41,3 +41,7 @@ The packaged application is written to `dist/Daymark.app`.
 # math-support-scheduler
 # mathfolio
 # PocketPad
+
+## Agent Inbox
+
+Agent Inbox connects project requests to GitHub so you can leave an Idea or Ready request and follow recorded progress. Local drafts stay on your Mac; submitted requests in this repository are public. Read [the first-version workflow](docs/agent-inbox.md) for remote access, authorization, and check-in behavior.

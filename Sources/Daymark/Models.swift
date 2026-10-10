@@ -7,6 +7,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case reflect = "Reflect"
     case review = "Review"
     case apps = "Apps"
+    case agents = "Agent Inbox"
 
     var id: String { rawValue }
 
@@ -18,6 +19,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .reflect: "moon.stars.fill"
         case .review: "chart.bar.xaxis"
         case .apps: "square.grid.2x2.fill"
+        case .agents: "tray.full.fill"
         }
     }
 }

@@ -28,5 +28,7 @@ mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Resources"
 cp ".build/release/Daymark" "$CONTENTS_DIR/MacOS/Daymark"
 cp "$PROJECT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "$PROJECT_DIR/Resources/AppIcon.icns" "$CONTENTS_DIR/Resources/AppIcon.icns"
+# Finder may add this metadata after a previous preview of the generated app.
+xattr -d com.apple.FinderInfo "$APP_DIR" 2>/dev/null || true
 codesign --force --deep --sign - "$APP_DIR"
 echo "$APP_DIR"
