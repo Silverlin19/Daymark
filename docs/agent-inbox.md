@@ -106,6 +106,7 @@ its own Node tests and local browser QA instructions.
 - Public GitHub-backed requests; no private cloud note storage yet.
 - GitHub login and final submission happen on GitHub.
 - Request progress and PR links are shared; comments are opened on GitHub.
-- Companion hosting and installation of the new native build are separate from
-  preparing the first reviewable implementation.
+- The browser companion is published privately for Sam at the link above.
+  Requests submitted through it are still public GitHub issues. Native installation
+  and merging the two implementation PRs remain pending.
 - A periodic Codex check-in, not a guarantee of cloud execution while the Mac sleeps.
